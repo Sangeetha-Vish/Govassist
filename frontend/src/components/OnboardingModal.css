@@ -1,0 +1,224 @@
+/* ==========================================================================
+   GovAssist AI - Editorial Auth & Onboarding Styles
+   ========================================================================== */
+
+.editorial-auth-page {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  background-color: var(--bg-app);
+}
+
+/* ─── Hero Split Layout (Screenshot 1) ─── */
+.auth-hero-split-container {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+/* Left Hero Column */
+.auth-hero-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.auth-kicker {
+  margin-bottom: 1.5rem;
+}
+
+.auth-hero-heading {
+  font-size: 3.8rem;
+  line-height: 1.08;
+  font-weight: 500;
+  color: var(--text-hero);
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.auth-hero-subtitle {
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 440px;
+  margin-bottom: 3.5rem;
+}
+
+.auth-trust-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  max-width: 400px;
+}
+
+.trust-shield-icon {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.trust-shield-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.trust-shield-content strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-hero);
+  margin-bottom: 0.2rem;
+}
+
+.trust-shield-content span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Right Card Column */
+.auth-hero-right {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-card-surface {
+  background-color: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 16px 36px -6px rgba(28, 25, 23, 0.08), 0 2px 6px rgba(28, 25, 23, 0.02);
+}
+
+.auth-card-title {
+  font-size: 1.9rem;
+  font-weight: 500;
+  color: var(--text-hero);
+  margin-bottom: 0.4rem;
+}
+
+.auth-card-sub {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin-bottom: 1.75rem;
+}
+
+.editorial-auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-submit-btn {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 1rem;
+  margin-top: 0.5rem;
+  border-radius: var(--radius-xs);
+}
+
+.auth-card-footer {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.auth-mode-link {
+  background: transparent;
+  border: none;
+  color: var(--ga-maroon-base);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-mode-link:hover {
+  color: var(--ga-maroon-hover);
+}
+
+/* ─── Snapshot Form Container ─── */
+.snapshot-form-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.snapshot-form-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-card);
+}
+
+.form-header {
+  margin-bottom: 2rem;
+}
+
+.form-serif-title {
+  font-size: 2.2rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.form-sub-desc {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.25rem;
+}
+
+.form-field-error {
+  font-size: 0.8rem;
+  color: var(--ga-crimson-base);
+  margin-top: 0.3rem;
+}
+
+.snapshot-form-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.editorial-alert {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+
+.alert-error {
+  background-color: var(--ga-crimson-light);
+  border: 1px solid var(--ga-crimson-border);
+  color: var(--ga-crimson-deep);
+}
+
+@media (max-width: 860px) {
+  .auth-hero-split-container {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+  }
+  .auth-hero-heading {
+    font-size: 2.8rem;
+  }
+  .form-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}

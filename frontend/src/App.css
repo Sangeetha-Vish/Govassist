@@ -1,0 +1,87 @@
+/* ==========================================================================
+   GovAssist AI - Editorial App Layout & Shared Component Styles
+   ========================================================================== */
+
+.gov-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-app);
+}
+
+.gov-main-container {
+  flex: 1;
+  width: 100%;
+}
+
+/* ─── Editorial Minimalist Footer (Screenshots 2 & 3) ─── */
+.editorial-footer {
+  background-color: var(--bg-app);
+  border-top: 1px solid var(--border-subtle);
+  padding: 1.75rem 2rem;
+  margin-top: auto;
+}
+
+.editorial-footer-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.gov-brand-icon-sm {
+  width: 24px;
+  height: 24px;
+  background-color: var(--ga-maroon-base);
+  color: #FFFFFF;
+  border-radius: 50%;
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.footer-brand-name {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-hero);
+}
+
+.footer-center {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.footer-shield-icon {
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .editorial-footer-container {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+}

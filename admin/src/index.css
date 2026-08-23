@@ -1,0 +1,223 @@
+/* ==========================================================================
+   GovAssist Admin Dashboard - Color Palette Tokens
+   Exact Palette:
+     - #EFFEDF (Soft Mint Lime / Light Highlight Surface)
+     - #5F9EA0 (Cadet Blue / Primary Brand Accent & Headers)
+     - #7A87C7 (Periwinkle Indigo / Secondary Accent & Active States)
+     - #C8BAD3 (Muted Soft Lavender / Subtle Tags & Dividers)
+     - #A695B7 (Medium Amethyst / Badges & Border Highlights)
+     - #EADAE4 (Soft Rose Blush / Container Surfaces & Hover Backgrounds)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
+
+:root {
+  /* Color Palette Variables */
+  --adm-lime-light: #EFFEDF;
+  --adm-cadet: #5F9EA0;
+  --adm-cadet-dark: #46797B;
+  --adm-periwinkle: #7A87C7;
+  --adm-periwinkle-dark: #5B68A7;
+  --adm-lavender: #C8BAD3;
+  --adm-amethyst: #A695B7;
+  --adm-rose: #EADAE4;
+  --adm-rose-light: #FAF4F8;
+
+  /* Semantic UI Tokens */
+  --bg-app: #F6F8FA;
+  --bg-surface: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  
+  --text-main: #2C3345;
+  --text-muted: #64708A;
+  --text-inverse: #FFFFFF;
+  
+  --border-color: #E6E9F0;
+  --border-hover: #C8BAD3;
+  
+  --primary: #5F9EA0;
+  --primary-hover: #46797B;
+  --secondary: #7A87C7;
+
+  /* Typography */
+  --font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* Radius & Shadows */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 2px 6px rgba(95, 158, 160, 0.06);
+  --shadow-md: 0 8px 24px rgba(95, 158, 160, 0.12);
+  --shadow-lg: 0 16px 36px rgba(122, 135, 199, 0.15);
+
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  margin-top: 0;
+}
+
+/* Common UI Component Classes */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-family);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--adm-cadet);
+  color: var(--text-inverse);
+  border-color: var(--adm-cadet);
+}
+
+.btn-primary:hover {
+  background-color: var(--adm-cadet-dark);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--adm-periwinkle);
+  color: var(--text-inverse);
+  border-color: var(--adm-periwinkle);
+}
+
+.btn-secondary:hover {
+  background-color: var(--adm-periwinkle-dark);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--adm-cadet);
+  border-color: var(--adm-cadet);
+}
+
+.btn-outline:hover {
+  background-color: var(--adm-lime-light);
+}
+
+.btn-xs {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+}
+
+.card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.form-group {
+  margin-bottom: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.form-control {
+  font-family: var(--font-family);
+  font-size: 0.925rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-color);
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+  transition: var(--transition);
+}
+
+.form-control:focus {
+  border-color: var(--adm-cadet);
+  box-shadow: 0 0 0 3px rgba(95, 158, 160, 0.18);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge-active {
+  background-color: var(--adm-lime-light);
+  color: var(--adm-cadet-dark);
+  border: 1px solid var(--adm-cadet);
+}
+
+.badge-archived {
+  background-color: var(--adm-rose);
+  color: var(--text-main);
+  border: 1px solid var(--adm-amethyst);
+}
+
+.alert {
+  padding: 0.85rem 1.15rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.alert-danger {
+  background-color: #FDF0F2;
+  color: #96283C;
+  border: 1px solid #E8B6C0;
+}
