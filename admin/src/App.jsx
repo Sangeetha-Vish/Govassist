@@ -918,15 +918,12 @@ export default function App() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '1.5rem', height: '65vh' }}>
               {/* Left Side: PDF Preview */}
-              <div style={{ background: '#f5f5f5', borderRadius: '8px', overflow: 'hidden' }}>
-                <object 
-                  data={`${API_BASE}/admin/documents/${reviewingDoc.id}/download?token=${token}`} 
-                  type="application/pdf" 
-                  width="100%" 
-                  height="100%"
-                >
-                  <p>Preview not available. <a href={`${API_BASE}/admin/documents/${reviewingDoc.id}/download?token=${token}`} target="_blank" rel="noreferrer">Download PDF</a></p>
-                </object>
+              <div style={{ background: '#f5f5f5', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <iframe 
+                  src={`${API_BASE}/admin/documents/${reviewingDoc.id}/download?token=${token}`} 
+                  title="Document Preview"
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
               </div>
 
               {/* Right Side: Details & Actions */}
@@ -996,10 +993,10 @@ export default function App() {
                     type="button" 
                     className="btn btn-primary"
                     disabled={submittingReview}
-                    style={{ background: 'var(--adm-emerald)', borderColor: 'var(--adm-emerald)', opacity: submittingReview ? 0.7 : 1 }}
+                    style={{ background: 'var(--adm-emerald)', borderColor: 'var(--adm-emerald)', color: 'white', opacity: submittingReview ? 0.7 : 1 }}
                     onClick={() => handleReviewDoc('verified')}
                   >
-                    {submittingReview ? 'Processing...' : '✅ Approve Document'}
+                    {submittingReview ? 'Processing...' : 'Approve Document'}
                   </button>
                   <button 
                     type="button" 

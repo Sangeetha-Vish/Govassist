@@ -8,14 +8,14 @@ const pool = new Pool({
     rejectUnauthorized: false,
   },
   max: 10,
-  idleTimeoutMillis: 30000,
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 15000,
-  keepAlive: true,
+  // DO NOT use keepAlive with Supavisor pooler, it causes unexpectedly terminated connections
 });
 
 // Handle idle connection errors gracefully (prevents ECONNRESET process crashes)
-pool.on("error", (err) => {
-  console.warn("PostgreSQL pool idle client notice (reconnected automatically):", err.message);
+pool.on("error", (err, client) => {
+  console.warn("PostgreSQL pool idle client error (Supabase pooler closed it):", err.message);
 });
 
 module.exports = pool;

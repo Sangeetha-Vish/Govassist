@@ -102,23 +102,23 @@ async function processDocument(userId, file, documentType, authHeader) {
     const extractedFields = extractResult.data?.extracted || {};
 
     // ─── STAGE 6: Field Validation & Contradiction Detection ───
-    const fieldValidResult = fieldValidator.validate(extractedFields, documentType, text);
-    stageResults.validation = { pass: fieldValidResult.pass, code: fieldValidResult.code, data: fieldValidResult.data };
-
-    // ─── STAGE 7: Fraud Detection ───
-    // Fetch existing documents for duplicate check
+    // Fetch existing documents for duplicate and consistency check
     let existingDocs = [];
     try {
       const existingRes = await pool.query(
-        `SELECT document_type, verification_status FROM documents WHERE user_id = $1`,
+        `SELECT document_type, verification_status, extracted_data FROM documents WHERE user_id = $1`,
         [userId]
       );
       existingDocs = existingRes.rows;
     } catch (e) {
-      console.warn("Could not fetch existing docs for duplicate check:", e.message);
+      console.warn("Could not fetch existing docs for consistency check:", e.message);
     }
 
-    const fraudResult = fraudDetector.detect(text, info, documentType, existingDocs);
+    const fieldValidResult = fieldValidator.validate(extractedFields, documentType, text, existingDocs);
+    stageResults.validation = { pass: fieldValidResult.pass, code: fieldValidResult.code, data: fieldValidResult.data };
+
+    // ─── STAGE 7: Fraud Detection ───
+    const fraudResult = fraudDetector.detect(text, info, documentType, existingDocs, ocrResult.aiMetadata);
     stageResults.fraud = { pass: fraudResult.pass, code: fraudResult.code, data: fraudResult.data };
 
     // If fraud check returned a hard failure (LIKELY_FORGED)

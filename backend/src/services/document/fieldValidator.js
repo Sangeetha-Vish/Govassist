@@ -6,7 +6,7 @@
 
 const { DOCUMENT_RULES, getDocumentLabel } = require("../documentRules");
 
-function validate(extractedFields, documentType, fullText = "") {
+function validate(extractedFields, documentType, fullText = "", existingDocs = []) {
   const rules = DOCUMENT_RULES[documentType];
   const label = getDocumentLabel(documentType);
   const textLower = (fullText || "").toLowerCase();
@@ -46,12 +46,39 @@ function validate(extractedFields, documentType, fullText = "") {
       contradictions.push("Extracted degree title contains semester marksheet terminology");
     }
   }
+  
+  // ─── 1.5. CROSS-DOCUMENT NAME/DOB CONSISTENCY ───
+  // If we have verified documents, check if the extracted name or dob severely conflicts
+  if (existingDocs.length > 0) {
+    for (const doc of existingDocs) {
+      if (doc.verification_status === "verified" && doc.extracted_data) {
+        const verifiedData = typeof doc.extracted_data === 'string' ? JSON.parse(doc.extracted_data) : doc.extracted_data;
+        
+        // Name check
+        if (extractedFields.name && verifiedData.name) {
+          const currentName = extractedFields.name.toLowerCase().replace(/[^a-z]/g, '');
+          const verifiedName = verifiedData.name.toLowerCase().replace(/[^a-z]/g, '');
+          // Very basic mismatch check (if they are completely different strings, e.g. "Rahul" vs "Amit")
+          if (currentName.length > 3 && verifiedName.length > 3 && !currentName.includes(verifiedName) && !verifiedName.includes(currentName)) {
+            contradictions.push(`Name mismatch with verified ${getDocumentLabel(doc.document_type)}`);
+          }
+        }
+        
+        // DOB check
+        if (extractedFields.dob && verifiedData.dob) {
+          if (extractedFields.dob !== verifiedData.dob) {
+            contradictions.push(`Date of Birth mismatch with verified ${getDocumentLabel(doc.document_type)}`);
+          }
+        }
+      }
+    }
+  }
 
   if (contradictions.length > 0) {
     return {
       pass: false,
       code: "CONTRADICTION",
-      userMessage: `This document contains conflicting information for a ${label}. Please upload your official ${label}.`,
+      userMessage: `This document contains conflicting information (e.g. Name/DOB mismatch) for a ${label}. Our team needs to review this.`,
       data: { contradictions, issues }
     };
   }
@@ -82,43 +109,12 @@ function validate(extractedFields, documentType, fullText = "") {
 
   // ─── 4. HANDLE ISSUES WITH CITIZEN-FRIENDLY FEEDBACK ───
   if (issues.length > 0) {
-    if (issues.includes("pan_number")) {
-      return {
-        pass: false,
-        code: "INVALID_PAN",
-        userMessage: "The PAN number could not be verified from this document. Please upload a clear and complete PAN Card.",
-        data: { issues, validationResults }
-      };
-    }
-    if (issues.includes("aadhaar_number")) {
-      return {
-        pass: false,
-        code: "INVALID_AADHAAR",
-        userMessage: "The Aadhaar number could not be verified from this document. Please upload a clear and complete Aadhaar Card.",
-        data: { issues, validationResults }
-      };
-    }
-    if (issues.includes("income_amount")) {
-      return {
-        pass: false,
-        code: "INVALID_INCOME",
-        userMessage: "The income details could not be verified from this document. Please upload a valid Income Certificate.",
-        data: { issues, validationResults }
-      };
-    }
-    if (issues.includes("degree_name")) {
-      return {
-        pass: false,
-        code: "MISSING_DEGREE",
-        userMessage: `This doesn't appear to be a valid Degree Certificate. Please upload your official Degree Certificate.`,
-        data: { issues, validationResults }
-      };
-    }
-
+    // Missing data ≠ Fraud
+    let missingFieldNames = issues.map(i => i.replace('_', ' ')).join(", ");
     return {
       pass: false,
       code: "MISSING_FIELDS",
-      userMessage: `We couldn't find some required information in this ${label}. Please upload a complete and readable document.`,
+      userMessage: `We couldn't clearly read the following required details: ${missingFieldNames}. Please ensure the full document is visible and not cropped.`,
       data: { issues, validationResults }
     };
   }

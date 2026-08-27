@@ -81,9 +81,9 @@ exports.reviewDocument = async (req, res, next) => {
         } else if (doc.document_type === 'diploma' && extractedData.course) {
           await pool.query(`UPDATE profiles SET education = $1, updated_at = NOW() WHERE user_id = $2`, [extractedData.course, doc.user_id]);
         } else if (doc.document_type === 'marksheet_12') {
-          await pool.query(`UPDATE profiles SET education = '12th Standard / Higher Secondary', updated_at = NOW() WHERE user_id = $2`, [doc.user_id]);
+          await pool.query(`UPDATE profiles SET education = '12th Standard / Higher Secondary', updated_at = NOW() WHERE user_id = $1`, [doc.user_id]);
         } else if (doc.document_type === 'marksheet_10') {
-          await pool.query(`UPDATE profiles SET education = '10th Standard / Matriculation', updated_at = NOW() WHERE user_id = $2`, [doc.user_id]);
+          await pool.query(`UPDATE profiles SET education = '10th Standard / Matriculation', updated_at = NOW() WHERE user_id = $1`, [doc.user_id]);
         }
       } catch (err) {
         console.warn("Failed to auto-update profile after admin verification", err);
@@ -130,8 +130,15 @@ exports.downloadDocument = async (req, res, next) => {
       return res.status(response.status).json({ success: false, error: "Failed to fetch document from Supabase Storage" });
     }
 
-    // Set appropriate headers for PDF preview
-    res.setHeader('Content-Type', 'application/pdf');
+    // Determine Content-Type based on file extension
+    const ext = filePath.split('.').pop().toLowerCase();
+    let contentType = 'application/pdf';
+    if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
+    else if (ext === 'png') contentType = 'image/png';
+    else if (ext === 'webp') contentType = 'image/webp';
+
+    // Set appropriate headers for preview
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', 'inline');
 
     // Pipe the fetch response body to the Express response stream

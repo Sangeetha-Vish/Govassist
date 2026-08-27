@@ -342,20 +342,52 @@ RULES:
   };
 }
 
+const { classifyQuery, detectOffTopic } = require('./chat/intentClassifier');
+const {
+  getSchemeByNameOrAlias,
+  getUserDocumentRecord,
+  getLiveUserRecommendations,
+  discoverSchemesByCriteria
+} = require('./chat/structuredLookups');
+const {
+  composeEligibilityResponse,
+  composeDocumentTroubleshootingResponse,
+  composeRecommendationsResponse,
+  composeDiscoveryResponse,
+  composeProcessingTimeResponse,
+  composeDisambiguationResponse
+} = require('./chat/responseComposer');
+
 /**
- * Stream RAG Response from Gemini API (with Local Grounded Fallback)
+ * Stream helper: Emits text token by token with smooth pacing
  */
-async function streamChatResponse({ query, userProfile, verifiedDocs = [], unverifiedDocs = [], activeScheme = null, onToken, onDone, onError }) {
+async function streamText(text, onToken, delayMs = 12) {
+  const words = text.split(' ');
+  for (let i = 0; i < words.length; i++) {
+    const piece = (i === 0 ? '' : ' ') + words[i];
+    onToken(piece);
+    if (delayMs > 0) {
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+}
+
+/**
+ * Stream RAG Response — Hybrid Architecture:
+ * 1. Structured Database Lookups (Capabilities 1-5) as Primary
+ * 2. Vector RAG only for open-ended unstructured prose
+ */
+async function streamChatResponse({ query, userProfile, verifiedDocs = [], unverifiedDocs = [], activeScheme = null, userId = null, onToken, onDone, onError }) {
   try {
     const cleanQuery = (query || '').trim();
 
-    // ── GATE 1: Off-Topic / Out-of-scope Gate ──
-    const offTopicCheck = detectOffTopicQuery(cleanQuery);
+    // ─── GATE 1: Off-Topic Classifier ───
+    const offTopicCheck = detectOffTopic(cleanQuery);
     if (offTopicCheck.isOffTopic) {
-      onToken(offTopicCheck.response);
+      await streamText(offTopicCheck.response, onToken);
       onDone({
         fullText: offTopicCheck.response,
-        sources: [], // NO verified sources badge on off-topic!
+        sources: [], // No badges on off-topic
         isPersonalized: false,
         chunksRetrieved: 0,
         activeScheme: null,
@@ -363,49 +395,134 @@ async function streamChatResponse({ query, userProfile, verifiedDocs = [], unver
       return;
     }
 
-    // ── GATE 2: Intent & Context Continuation Classifier ──
-    const intent = classifyIntent(cleanQuery);
+    // ─── GATE 2: Intent Classification ───
+    const { intent } = classifyQuery(cleanQuery);
+
+    // ─── CAPABILITY 2: Document Verification / Rejection Troubleshooting ───
+    if (intent === 'DOCUMENT_TROUBLESHOOTING') {
+      const docRecord = await getUserDocumentRecord(userId || userProfile?.user_id, cleanQuery);
+      const res = composeDocumentTroubleshootingResponse(docRecord, userProfile);
+      await streamText(res.text, onToken);
+      onDone({
+        fullText: res.text,
+        sources: res.sources,
+        isPersonalized: res.isPersonalized,
+        chunksRetrieved: docRecord ? 1 : 0,
+        activeScheme: null,
+      });
+      return;
+    }
+
+    // ─── CAPABILITY 3: Live Personalized Recommendations ───
+    if (intent === 'PERSONALIZED_RECOMMENDATIONS') {
+      const recs = await getLiveUserRecommendations(userProfile);
+      const res = composeRecommendationsResponse(recs, userProfile);
+      await streamText(res.text, onToken);
+      onDone({
+        fullText: res.text,
+        sources: res.sources,
+        isPersonalized: res.isPersonalized,
+        chunksRetrieved: recs.length,
+        activeScheme: null,
+      });
+      return;
+    }
+
+    // ─── CAPABILITY 4: Natural-Language Situation Discovery ───
+    if (intent === 'NATURAL_LANGUAGE_DISCOVERY') {
+      const discovered = await discoverSchemesByCriteria(cleanQuery, userProfile);
+      const res = composeDiscoveryResponse(discovered, cleanQuery);
+      await streamText(res.text, onToken);
+      onDone({
+        fullText: res.text,
+        sources: res.sources,
+        isPersonalized: res.isPersonalized,
+        chunksRetrieved: discovered.length,
+        activeScheme: null,
+      });
+      return;
+    }
+
+    // ─── CAPABILITY 1 & 5 & NAMED SCHEME LOOKUPS: Structured DB Lookup First ───
     const isContinuation = isContinuationFollowUp(cleanQuery, activeScheme);
+    const lookupTarget = isContinuation && activeScheme ? activeScheme.scheme_name : cleanQuery;
+    const dbLookup = await getSchemeByNameOrAlias(lookupTarget);
 
+    if (dbLookup.isAmbiguous && dbLookup.candidates) {
+      const res = composeDisambiguationResponse(dbLookup.candidates, cleanQuery);
+      await streamText(res.text, onToken);
+      onDone({
+        fullText: res.text,
+        sources: [],
+        isPersonalized: false,
+        chunksRetrieved: dbLookup.candidates.length,
+        activeScheme: null,
+      });
+      return;
+    }
+
+    const scheme = dbLookup.scheme || activeScheme;
+
+    // If scheme was found in DB
+    if (scheme) {
+      // Capability 5: Processing Time
+      if (intent === 'PROCESSING_TIME') {
+        const res = composeProcessingTimeResponse(scheme);
+        await streamText(res.text, onToken);
+        onDone({
+          fullText: res.text,
+          sources: res.sources,
+          isPersonalized: res.isPersonalized,
+          chunksRetrieved: 1,
+          activeScheme: { scheme_id: scheme.scheme_id, scheme_name: scheme.scheme_name },
+        });
+        return;
+      }
+
+      // Capability 1: Eligibility & Criteria
+      if (intent === 'ELIGIBILITY_CHECK' || (!intent || intent === 'GENERAL_QUERY')) {
+        const res = composeEligibilityResponse(scheme, userProfile, verifiedDocs);
+        await streamText(res.text, onToken);
+        onDone({
+          fullText: res.text,
+          sources: res.sources,
+          isPersonalized: res.isPersonalized,
+          chunksRetrieved: 1,
+          activeScheme: { scheme_id: scheme.scheme_id, scheme_name: scheme.scheme_name },
+        });
+        return;
+      }
+    }
+
+    // ─── SECONDARY PATH: Vector RAG for open-ended prose / instructions ───
     let searchQuery = cleanQuery;
-    if (isContinuation && activeScheme) {
-      searchQuery = `${activeScheme.scheme_name} ${cleanQuery}`;
+    if (scheme) {
+      searchQuery = `${scheme.scheme_name} ${cleanQuery}`;
     }
 
-    const filter = {};
-    if (userProfile?.category && userProfile.category !== 'all' && !isContinuation) {
-      filter.category = userProfile.category.toLowerCase();
-    }
-
-    // ── GATE 3: Retrieval & Confidence Verification ──
-    const chunks = await retrieveSchemeContext(searchQuery, 8, Object.keys(filter).length > 0 ? filter : null);
-    
-    // Check if user specifically requested a named scheme
+    const chunks = await retrieveSchemeContext(searchQuery, 6);
     const extractedEntity = extractSchemeEntityFromQuery(cleanQuery);
-    let resolvedScheme = null;
+    let resolvedScheme = scheme ? { scheme_id: scheme.scheme_id, scheme_name: scheme.scheme_name } : null;
     let confidencePassed = true;
 
     if (chunks.length > 0) {
-      const matchResult = verifySchemeMatch(isContinuation && activeScheme ? activeScheme.scheme_name : extractedEntity, chunks[0]);
+      const matchResult = verifySchemeMatch(scheme ? scheme.scheme_name : extractedEntity, chunks[0]);
       if (matchResult.isMatch) {
-        resolvedScheme = matchResult.scheme;
-      } else {
-        // If user asked about a specific scheme and top candidate does NOT match
-        if (!isContinuation && extractedEntity.length > 3) {
-          confidencePassed = false;
-        }
+        resolvedScheme = resolvedScheme || matchResult.scheme;
+      } else if (!scheme && extractedEntity.length > 3) {
+        confidencePassed = false;
       }
-    } else {
+    } else if (!scheme) {
       confidencePassed = false;
     }
 
-    // If confidence / match gate failed: return honest grounded no-match
-    if (!confidencePassed || chunks.length === 0) {
-      const notFoundText = `I couldn't find verified records for **"${extractedEntity}"** in our active 95-scheme database. It might be listed under a different official department title or is not yet indexed in our registry.\n\nYou can search all active schemes directly in the [Scheme Finder](/finder) or visit the official [National Portal of India](https://www.india.gov.in).`;
-      onToken(notFoundText);
+    // If confidence failed: return honest grounded no-match
+    if (!confidencePassed || (chunks.length === 0 && !scheme)) {
+      const notFoundText = `I couldn't find verified records for **"${extractedEntity}"** in our active database. It might be listed under a different official department title or is not yet indexed in our registry.\n\nYou can search all active schemes directly in the [Scheme Finder](/finder) or visit the official [National Portal of India](https://www.india.gov.in).`;
+      await streamText(notFoundText, onToken);
       onDone({
         fullText: notFoundText,
-        sources: [], // EMPTY sources -> No verified badge on non-match!
+        sources: [], // EMPTY sources -> No badge on non-match!
         isPersonalized: false,
         chunksRetrieved: 0,
         activeScheme: null,
@@ -415,12 +532,12 @@ async function streamChatResponse({ query, userProfile, verifiedDocs = [], unver
 
     const { systemInstruction, prompt, sources, isPersonalized } = buildRagPrompt(cleanQuery, intent, chunks, userProfile, verifiedDocs, unverifiedDocs, resolvedScheme);
 
-    // ── Generate via Gemini Stream if API Key is configured ──
+    // If Gemini is available, stream LLM generation
     if (GEMINI_API_KEY) {
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({
         model: DEFAULT_MODEL,
-        systemInstruction: systemInstruction,
+        systemInstruction,
       });
 
       const result = await model.generateContentStream(prompt);
@@ -442,7 +559,7 @@ async function streamChatResponse({ query, userProfile, verifiedDocs = [], unver
       return;
     }
 
-    // ── Local High-Precision Grounded Responder for Intent Execution ──
+    // Local deterministic generator fallback
     const fallbackResponse = generateLocalIntentResponse({
       query: cleanQuery,
       intent,
@@ -453,17 +570,10 @@ async function streamChatResponse({ query, userProfile, verifiedDocs = [], unver
       activeScheme: resolvedScheme,
     });
 
-    const words = fallbackResponse.split(' ');
-    let fullText = '';
-    for (let i = 0; i < words.length; i++) {
-      const piece = (i === 0 ? '' : ' ') + words[i];
-      fullText += piece;
-      onToken(piece);
-      await new Promise(r => setTimeout(r, 16));
-    }
+    await streamText(fallbackResponse, onToken);
 
     onDone({
-      fullText,
+      fullText: fallbackResponse,
       sources,
       isPersonalized,
       chunksRetrieved: chunks.length,
@@ -471,7 +581,7 @@ async function streamChatResponse({ query, userProfile, verifiedDocs = [], unver
     });
   } catch (err) {
     console.error('Error in streamChatResponse:', err);
-    onError(err);
+    onError?.(err);
   }
 }
 

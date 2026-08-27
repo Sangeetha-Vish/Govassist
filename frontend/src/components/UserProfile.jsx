@@ -506,7 +506,28 @@ export default function UserProfile({ onUpdateProfile, onComplete }) {
                                 ) : (
                                   <p className="no-meta-text">Verified document attached to profile snapshot.</p>
                                 )}
-                              </div>
+                                  
+                                  {doc.file_path && (
+                                    <div style={{ marginTop: '1rem', borderTop: '1px solid #eaeaea', paddingTop: '1rem' }}>
+                                      <button 
+                                        type="button" 
+                                        className="btn btn-outline" 
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const { data, error } = await supabase.storage.from('citizen_documents').createSignedUrl(doc.file_path, 60 * 60);
+                                          if (data?.signedUrl) {
+                                            window.open(data.signedUrl, '_blank');
+                                          } else {
+                                            alert('Failed to load document preview.');
+                                          }
+                                        }}
+                                      >
+                                        📄 View Original Document
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                             )}
                           </div>
                         );

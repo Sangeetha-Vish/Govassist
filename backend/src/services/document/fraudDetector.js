@@ -1,13 +1,13 @@
 /**
  * Fraud Detector — Stage 6
- * PDF metadata checks, official marker checks, duplicate detection.
+ * PDF metadata checks, official marker checks, duplicate detection, and visual tampering checks.
  */
 
 const { DOCUMENT_RULES } = require("../documentRules");
 
 const SUSPICIOUS_CREATORS = ["microsoft word", "pages", "canva", "writer", "libreoffice", "google docs", "wps office"];
 
-function detect(text, pdfInfo, documentType, existingDocs) {
+function detect(text, pdfInfo, documentType, existingDocs, aiMetadata = null) {
   const textLower = text.toLowerCase();
   const rules = DOCUMENT_RULES[documentType];
   if (!rules) {
@@ -51,7 +51,19 @@ function detect(text, pdfInfo, documentType, existingDocs) {
   // 3. Digital signature check
   const hasDigitalSignature = textLower.includes("digitally signed") || textLower.includes("digital signature");
 
-  // 4. Duplicate detection — check if same document type already verified
+  // 4. AI Visual Tampering Check
+  let hasVisualTampering = false;
+  if (aiMetadata && aiMetadata.tampering_signals && aiMetadata.tampering_signals.length > 0) {
+    hasVisualTampering = true;
+    for (const sig of aiMetadata.tampering_signals) {
+      signals.push({
+        type: "visual_tampering",
+        detail: sig
+      });
+    }
+  }
+
+  // 5. Duplicate detection — check if same document type already verified
   if (existingDocs && existingDocs.length > 0) {
     const alreadyVerified = existingDocs.find(
       d => d.document_type === documentType && d.verification_status === "verified"
@@ -64,20 +76,31 @@ function detect(text, pdfInfo, documentType, existingDocs) {
     }
   }
 
-  // Decision: high confidence fraud vs needs review vs clean
+  // Decision Logic: High confidence forgery vs Suspicious
+  // If it's a completely fake metadata AND no official markers AND no digital signature, it's forged
   if (isSuspiciousMetadata && !hasOfficialMarkers && !hasDigitalSignature) {
     return {
       pass: false,
       code: "LIKELY_FORGED",
-      userMessage: "This document doesn't appear to be an official certificate. It may have been created using a word processor. Please upload the original official document.",
-      data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, officialMarkerCount }
+      userMessage: "This document appears to be manually typed rather than an official certificate. Please upload the original official document.",
+      data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, hasVisualTampering, officialMarkerCount }
+    };
+  }
+  
+  // If AI sees tampering, or metadata is weird but there ARE official markers, we flag it as SUSPICIOUS (which maps to NEEDS_REVIEW)
+  if (hasVisualTampering) {
+    return {
+      pass: false, // Treat as failure at this stage to force review
+      code: "SUSPICIOUS_VISUALS",
+      userMessage: "This document requires additional verification by our team.",
+      data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, hasVisualTampering, officialMarkerCount }
     };
   }
 
   return {
     pass: true,
     code: "OK",
-    data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, officialMarkerCount }
+    data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, hasVisualTampering, officialMarkerCount }
   };
 }
 

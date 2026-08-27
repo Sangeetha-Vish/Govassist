@@ -1,6 +1,6 @@
 /**
  * Quality Checker — Stage 2
- * Checks PDF page count, text density, and readability.
+ * Checks PDF page count, text density, and AI-generated readability flags.
  */
 
 const MIN_TEXT_LENGTH = 5;
@@ -10,8 +10,27 @@ function check(pdfData) {
   const text = (pdfData.text || "").trim();
   const numPages = pdfData.numpages || 1;
   const textLength = text.length;
+  const aiMetadata = pdfData.aiMetadata || {};
+  const quality = aiMetadata.quality || {};
 
-  // Zero pages — corrupt or unreadable
+  // 1. AI Quality Flags (Priority Checks)
+  if (quality.is_unreadable) {
+    return {
+      pass: false,
+      code: "UNREADABLE",
+      userMessage: "This document is too dark, corrupted, or low-resolution to read. Please upload a clearer copy."
+    };
+  }
+
+  if (quality.is_blurry) {
+    return {
+      pass: false,
+      code: "LOW_DENSITY",
+      userMessage: "This scan is too blurry to verify. Please upload a clearer copy."
+    };
+  }
+
+  // 2. Physical Document Constraints
   if (numPages === 0) {
     return {
       pass: false,
@@ -20,7 +39,6 @@ function check(pdfData) {
     };
   }
 
-  // Too many pages — likely not a single document
   if (numPages > MAX_PAGES) {
     return {
       pass: false,
@@ -29,12 +47,12 @@ function check(pdfData) {
     };
   }
 
-  // Blank or nearly blank
+  // 3. Density / Blank Document Check
   if (textLength < MIN_TEXT_LENGTH) {
     return {
       pass: false,
       code: "UNREADABLE",
-      userMessage: "We couldn't clearly read this document. Please upload a clearer copy or an official scan."
+      userMessage: "We couldn't find any readable text in this document. Please upload a clearer copy or an official scan."
     };
   }
 
@@ -47,7 +65,8 @@ function check(pdfData) {
       numPages, 
       textLength, 
       densityPerPage: Math.round(densityPerPage),
-      isLowDensity: densityPerPage < 15
+      isLowDensity: densityPerPage < 15,
+      language: quality.language || "unknown"
     }
   };
 }

@@ -83,6 +83,7 @@ async function streamChat(req, res) {
     verifiedDocs: userVerifiedDocs,
     unverifiedDocs: userUnverifiedDocs,
     activeScheme,
+    userId: req.user?.id || userProfile?.user_id || null,
     onToken: (token) => {
       res.write(`data: ${JSON.stringify({ type: 'token', text: token })}\n\n`);
     },
