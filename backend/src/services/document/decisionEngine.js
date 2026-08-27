@@ -1,23 +1,21 @@
 /**
- * Decision Engine — Stage 7
+ * Decision Engine — Stage 8
  * Aggregates results from all stages and determines final verification outcome.
- * 
- * Rules:
- * 1. Wrong type / structurally invalid / unreadable / incomplete -> REJECTED
- * 2. Valid-looking document + genuinely ambiguous/minor inconsistency -> NEEDS_REVIEW (last resort)
- * 3. Valid document + required checks pass -> VERIFIED
+ *
+ * Thresholds (conceptual):
+ *   0–94% relevance match → REJECT  (wrong type, non-document, unreadable, missing fields)
+ *  95–99% relevance + genuine auth uncertainty → ADMIN REVIEW (last resort)
+ * 100% clean → VERIFIED
+ *
+ * Admin Review is ONLY for documents that:
+ *   - Are clearly the correct document type
+ *   - Have all required fields present and passing
+ *   - But have an unresolved authenticity/tampering signal that
+ *     cannot be deterministically resolved by the system
  */
 
 const { getDocumentLabel } = require("../documentRules");
 
-/**
- * @param {object} params
- * @param {object} params.fieldValidation - result from fieldValidator
- * @param {object} params.fraudDetection - result from fraudDetector
- * @param {object} params.extractedFields - extracted field values
- * @param {string} params.documentType
- * @returns {{ status: string, userMessage: string, data: object }}
- */
 function decide({ fieldValidation, fraudDetection, extractedFields, documentType }) {
   const label = getDocumentLabel(documentType);
   const signals = fraudDetection.data?.signals || [];
@@ -30,77 +28,83 @@ function decide({ fieldValidation, fraudDetection, extractedFields, documentType
   const fieldResults = fieldValidation.data?.validationResults || {};
   const contradictions = fieldValidation.data?.contradictions || [];
 
-  // ─── 1. REJECT / REUPLOAD (Structural, Type, Field, or Fraud Failures) ───
+  // ─── TIER 1: HARD REJECT ───
+  // These never go to Admin. User must fix and re-upload.
 
-  // A. Clearly forged (word processor metadata with no official markers)
+  // A. Clearly forged (word-processor tool metadata + zero official markers)
   if (hasSuspiciousMetadata && !hasOfficialMarkers && !hasDigitalSignature) {
     return {
-      status: "rejected_forged",
-      userMessage: `This document doesn't appear to be an official ${label}. Please upload the original official document.`,
-      data: { reason: "Suspicious word processor metadata without official markers", signals, fieldResults }
+      status: "rejected",
+      userMessage: `This document doesn't appear to be an official ${label}. It seems to have been created with a word processor rather than issued by a government authority. Please upload the original official document.`,
+      data: { reason: "Suspicious creator metadata with no official markers", signals, fieldResults }
     };
   }
 
-  // B. Required fields missing or failed format validation -> REJECT
+  // B. Required fields missing or failed format validation
+  //    Missing data ≠ Fraud. But it IS a rejection — the document is incomplete/unreadable.
   if (!fieldValidation.pass && fieldValidation.code !== "CONTRADICTION") {
     return {
       status: "rejected",
-      userMessage: fieldValidation.userMessage || `This doesn't appear to be a valid ${label}. Please upload the correct document.`,
-      data: { reason: "Required document fields missing or invalid format", fieldResults, signals }
+      userMessage: fieldValidation.userMessage ||
+        `We couldn't read all the required information from this ${label}. Please upload a complete, clearly visible document.`,
+      data: { reason: "Required fields missing or invalid format", fieldResults, signals }
     };
   }
 
-  // C. Empty extracted fields
-  if (!extractedFields || Object.keys(extractedFields).length === 0) {
+  // C. Empty extracted fields (no meaningful content at all)
+  if (!extractedFields || Object.keys(extractedFields).filter(k => extractedFields[k]).length === 0) {
     return {
       status: "rejected",
-      userMessage: `This doesn't appear to be a valid ${label}. Please upload the correct document.`,
+      userMessage: `We couldn't extract any information from this ${label}. Please upload a complete, clearly visible document.`,
       data: { reason: "No valid fields could be extracted", signals }
     };
   }
 
-  // ─── 2. ADMIN REVIEW (Last-resort for genuinely ambiguous valid-looking documents) ───
-
-  // A. Contradictions (e.g. Name/DOB mismatch across documents)
+  // D. Name/DOB cross-document contradiction → REJECT (user should clarify with correct doc)
   if (contradictions.length > 0) {
     return {
-      status: "manual_review_required",
-      userMessage: fieldValidation.userMessage || `This document contains conflicting information. Our team needs to review this.`,
-      data: { reason: "Consistency contradiction detected", signals, contradictions }
+      status: "rejected",
+      userMessage: fieldValidation.userMessage ||
+        `The name or date of birth on this ${label} conflicts with your previously verified documents. Please upload the correct document.`,
+      data: { reason: "Cross-document contradiction", signals, contradictions }
     };
   }
 
-  // B. Visual Tampering detected by AI
-  if (hasVisualTampering) {
+  // ─── TIER 2: ADMIN REVIEW (LAST RESORT ONLY) ───
+  // Only reaches here if the document IS structurally valid, fields ARE present,
+  // but there is a genuine authenticity concern the system cannot resolve.
+
+  // E. AI detected visual tampering AND official markers are present (ambiguous — could be genuine)
+  if (hasVisualTampering && hasOfficialMarkers) {
     return {
       status: "manual_review_required",
-      userMessage: "This document requires additional verification by our team.",
-      data: { reason: "AI detected possible visual tampering", signals }
+      userMessage: "Your document looks official but our system detected some irregularities that need a human review. Our team will verify it shortly.",
+      data: { reason: "Visual tampering signals with official markers present", signals }
     };
   }
 
-  // C. Duplicate verified document for the same user
-  if (hasDuplicate) {
-    return {
-      status: "manual_review_required",
-      userMessage: `A ${label} has already been verified for your profile. Our team will review this new upload.`,
-      data: { reason: "Duplicate verified document uploaded", signals }
-    };
-  }
-
-  // D. Suspicious tool metadata BUT official markers/signatures ARE present (ambiguous)
+  // F. Suspicious creator tool + official markers/signature ARE both present (ambiguous edge case)
   if (hasSuspiciousMetadata && (hasOfficialMarkers || hasDigitalSignature)) {
     return {
       status: "manual_review_required",
-      userMessage: "We need to take a closer look at this document. Your document has been sent for review.",
-      data: { reason: "Word processor metadata present despite official markers", signals }
+      userMessage: "Our automated system flagged a minor concern on this document. Our team will verify it and update you shortly.",
+      data: { reason: "Word processor metadata with official markers — ambiguous", signals }
     };
   }
 
-  // ─── 3. VERIFIED (Valid document + required checks pass) ───
+  // G. Duplicate verified document for the same user
+  if (hasDuplicate) {
+    return {
+      status: "manual_review_required",
+      userMessage: `A ${label} has already been verified for your profile. Our team will review this new upload to ensure accuracy.`,
+      data: { reason: "Duplicate verified document", signals }
+    };
+  }
+
+  // ─── TIER 3: VERIFIED ───
   return {
     status: "verified",
-    userMessage: `Your ${label} passed GovAssist's document and consistency checks.`,
+    userMessage: `Your ${label} has been verified successfully.`,
     data: { reason: "All checks passed", signals, fieldResults }
   };
 }

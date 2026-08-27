@@ -46,27 +46,27 @@ async function processDocument(userId, file, documentType, authHeader) {
     const info = ocrResult.info || {};
     stageResults.extraction = { pass: true, code: "OK", source: ocrResult.source };
 
-    // ─── STAGE 3: Quality Check ───
-    const qualityResult = qualityChecker.check({ text, numpages: ocrResult.numPages });
+    // ─── STAGE 3: Non-Document / Quality Check ───
+    // Check if AI flagged this as a non-document (photo, selfie, anime, scenery, etc.)
+    const aiQuality = ocrResult.aiMetadata?.quality || {};
+    if (aiQuality.is_non_document) {
+      return {
+        success: false,
+        userMessage: "This doesn't look like a document. Please upload an official government document such as a PAN card, Aadhaar, or certificate.",
+        code: "NON_DOCUMENT",
+        stageResults
+      };
+    }
+
+    const qualityResult = qualityChecker.check({ text, numpages: ocrResult.numPages, aiMetadata: ocrResult.aiMetadata });
     stageResults.quality = { pass: qualityResult.pass, code: qualityResult.code, data: qualityResult.data };
 
     if (!qualityResult.pass) {
-      // If quality is too low to parse automatically, still save for admin manual review
-      await uploadToStorage(filePath, file, authHeader);
-      const doc = await insertDocument(
-        userId,
-        documentType,
-        filePath,
-        "manual_review_required",
-        {},
-        stageResults,
-        qualityResult.userMessage
-      );
+      // Unreadable/blurry documents → REJECT and ask for re-upload. Never send to Admin.
       return {
-        success: true,
-        document: doc,
-        userMessage: "Document uploaded. Because the scan quality is low, it has been queued for manual admin verification.",
-        code: "MANUAL_REVIEW_QUEUED",
+        success: false,
+        userMessage: qualityResult.userMessage,
+        code: qualityResult.code,
         stageResults
       };
     }
@@ -74,24 +74,14 @@ async function processDocument(userId, file, documentType, authHeader) {
     // ─── STAGE 4: Type Classification ───
     const classifyResult = typeClassifier.classify(text, documentType);
     stageResults.classification = { pass: classifyResult.pass, code: classifyResult.code };
-    
+
     if (!classifyResult.pass) {
-      // If classification failed but some text is present, route to manual review rather than dropping
-      await uploadToStorage(filePath, file, authHeader);
-      const doc = await insertDocument(
-        userId,
-        documentType,
-        filePath,
-        "manual_review_required",
-        {},
-        stageResults,
-        classifyResult.userMessage
-      );
+      // Wrong document type or completely unrecognized → REJECT immediately, never Admin.
+      // Admin Review is only for verified-looking documents with authenticity concerns.
       return {
-        success: true,
-        document: doc,
-        userMessage: classifyResult.userMessage || "Document sent for manual admin review.",
-        code: classifyResult.code || "MANUAL_REVIEW_QUEUED",
+        success: false,
+        userMessage: classifyResult.userMessage || `This doesn't appear to be a valid ${documentType.replace('_', ' ')}. Please upload the correct document.`,
+        code: classifyResult.code || "WRONG_TYPE",
         stageResults
       };
     }
@@ -121,16 +111,10 @@ async function processDocument(userId, file, documentType, authHeader) {
     const fraudResult = fraudDetector.detect(text, info, documentType, existingDocs, ocrResult.aiMetadata);
     stageResults.fraud = { pass: fraudResult.pass, code: fraudResult.code, data: fraudResult.data };
 
-    // If fraud check returned a hard failure (LIKELY_FORGED)
+    // Hard fraud failures → REJECT immediately (no storage, no admin queue)
     if (!fraudResult.pass) {
-      // Still upload to storage for admin review
-      await uploadToStorage(filePath, file, authHeader);
-
-      const doc = await insertDocument(userId, documentType, filePath, "rejected_forged", extractedFields, stageResults, fraudResult.userMessage);
-
       return {
-        success: true,
-        document: doc,
+        success: false,
         userMessage: fraudResult.userMessage,
         code: fraudResult.code,
         stageResults

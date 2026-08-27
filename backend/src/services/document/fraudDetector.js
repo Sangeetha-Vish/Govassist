@@ -76,8 +76,8 @@ function detect(text, pdfInfo, documentType, existingDocs, aiMetadata = null) {
     }
   }
 
-  // Decision Logic: High confidence forgery vs Suspicious
-  // If it's a completely fake metadata AND no official markers AND no digital signature, it's forged
+  // Decision Logic
+  // Case 1: Clearly fake — word processor tool, no official markers, no digital signature
   if (isSuspiciousMetadata && !hasOfficialMarkers && !hasDigitalSignature) {
     return {
       pass: false,
@@ -86,17 +86,19 @@ function detect(text, pdfInfo, documentType, existingDocs, aiMetadata = null) {
       data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, hasVisualTampering, officialMarkerCount }
     };
   }
-  
-  // If AI sees tampering, or metadata is weird but there ARE official markers, we flag it as SUSPICIOUS (which maps to NEEDS_REVIEW)
-  if (hasVisualTampering) {
+
+  // Case 2: Visual tampering with no official backing → hard reject
+  if (hasVisualTampering && !hasOfficialMarkers) {
     return {
-      pass: false, // Treat as failure at this stage to force review
-      code: "SUSPICIOUS_VISUALS",
-      userMessage: "This document requires additional verification by our team.",
+      pass: false,
+      code: "TAMPERED_NO_MARKERS",
+      userMessage: "This document shows signs of editing and does not appear to be an official government document. Please upload the original unedited document.",
       data: { signals, isSuspiciousMetadata, hasOfficialMarkers, hasDigitalSignature, hasVisualTampering, officialMarkerCount }
     };
   }
 
+  // Case 3: Visual tampering WITH official markers → pass to decision engine as ambiguous
+  // (decision engine will send to admin review)
   return {
     pass: true,
     code: "OK",
