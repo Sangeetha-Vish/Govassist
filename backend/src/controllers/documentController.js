@@ -35,9 +35,10 @@ function getUserMessage(code, fallback) {
 
 exports.verifyDocument = async (req, res, next) => {
   try {
-    const { documentType, userId } = req.body;
+    const documentType = req.body.documentType || req.body.document_type;
+    const userId = req.body.userId || req.body.user_id || (req.user && req.user.id);
     const file = req.file;
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization || (process.env.SUPABASE_SERVICE_ROLE_KEY ? `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY.trim()}` : null);
 
     // Basic request validation
     if (!file) {

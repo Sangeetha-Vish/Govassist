@@ -9,7 +9,7 @@ function optionalAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.decode(token); // Decode Supabase JWT without blocking on signature
+      const decoded = jwt.decode(token);
       if (decoded && decoded.sub) {
         req.user = { id: decoded.sub, email: decoded.email };
       }
@@ -27,5 +27,11 @@ router.post('/stream', optionalAuth, chatController.streamChat);
 
 // GET /api/chat/history - Retrieve conversation history
 router.get('/history', optionalAuth, chatController.getHistory);
+
+// DELETE /api/chat/history - Clear conversation history (Privacy)
+router.delete('/history', optionalAuth, chatController.clearHistory);
+
+// POST /api/chat/feedback - Submit thumbs up / down quality feedback
+router.post('/feedback', optionalAuth, chatController.submitFeedback);
 
 module.exports = router;

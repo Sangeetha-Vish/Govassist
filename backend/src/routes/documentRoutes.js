@@ -5,7 +5,7 @@ const documentController = require("../controllers/documentController");
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
 // Handle multer errors (file too large) gracefully
@@ -14,7 +14,7 @@ function multerErrorHandler(err, req, res, next) {
     if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(200).json({
         success: false,
-        userMessage: "Your file is too large. Please upload a document smaller than 5MB.",
+        userMessage: "Your file is too large. Please upload a document smaller than 10MB.",
         code: "MULTER_LIMIT"
       });
     }

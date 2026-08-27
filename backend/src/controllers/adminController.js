@@ -23,8 +23,8 @@ exports.getPendingDocuments = async (req, res, next) => {
       SELECT d.*, p.email, p.category, p.age, p.location
       FROM documents d
       LEFT JOIN profiles p ON d.user_id = p.user_id
-      WHERE d.verification_status = 'manual_review_required'
-      ORDER BY d.created_at ASC;
+      WHERE d.verification_status IN ('manual_review_required', 'pending', 'rejected_forged', 'rejected')
+      ORDER BY d.created_at DESC;
     `;
     const result = await pool.query(query);
 

@@ -10,6 +10,7 @@ const { DOCUMENT_RULES, getValidDocumentTypes } = require("./documentRules");
 
 // Pipeline stages
 const uploadValidator = require("./document/uploadValidator");
+const ocrService = require("./document/ocrService");
 const qualityChecker = require("./document/qualityChecker");
 const typeClassifier = require("./document/typeClassifier");
 const fieldExtractor = require("./document/fieldExtractor");
@@ -39,37 +40,60 @@ async function processDocument(userId, file, documentType, authHeader) {
       };
     }
 
-    // ─── STAGE 2: PDF Extraction ───
-    let pdfData;
-    try {
-      pdfData = await pdfParse(file.buffer);
-    } catch (e) {
-      console.error("PDF parse error:", e.message);
-      stageResults.extraction = { pass: false, code: "PARSE_FAILED" };
-      return {
-        success: false,
-        userMessage: "We couldn't open this document. Please check the file and upload it again.",
-        code: "PARSE_FAILED",
-        stageResults
-      };
-    }
-    stageResults.extraction = { pass: true, code: "OK" };
-
-    const text = pdfData.text || "";
-    const info = pdfData.info || {};
+    // ─── STAGE 2: Text & OCR Extraction (Supports Native PDF, Scanned PDF, Images) ───
+    const ocrResult = await ocrService.parseDocument(file, documentType);
+    const text = ocrResult.text || "";
+    const info = ocrResult.info || {};
+    stageResults.extraction = { pass: true, code: "OK", source: ocrResult.source };
 
     // ─── STAGE 3: Quality Check ───
-    const qualityResult = qualityChecker.check(pdfData);
+    const qualityResult = qualityChecker.check({ text, numpages: ocrResult.numPages });
     stageResults.quality = { pass: qualityResult.pass, code: qualityResult.code, data: qualityResult.data };
+
     if (!qualityResult.pass) {
-      return { success: false, userMessage: qualityResult.userMessage, code: qualityResult.code, stageResults };
+      // If quality is too low to parse automatically, still save for admin manual review
+      await uploadToStorage(filePath, file, authHeader);
+      const doc = await insertDocument(
+        userId,
+        documentType,
+        filePath,
+        "manual_review_required",
+        {},
+        stageResults,
+        qualityResult.userMessage
+      );
+      return {
+        success: true,
+        document: doc,
+        userMessage: "Document uploaded. Because the scan quality is low, it has been queued for manual admin verification.",
+        code: "MANUAL_REVIEW_QUEUED",
+        stageResults
+      };
     }
 
     // ─── STAGE 4: Type Classification ───
     const classifyResult = typeClassifier.classify(text, documentType);
     stageResults.classification = { pass: classifyResult.pass, code: classifyResult.code };
+    
     if (!classifyResult.pass) {
-      return { success: false, userMessage: classifyResult.userMessage, code: classifyResult.code, stageResults };
+      // If classification failed but some text is present, route to manual review rather than dropping
+      await uploadToStorage(filePath, file, authHeader);
+      const doc = await insertDocument(
+        userId,
+        documentType,
+        filePath,
+        "manual_review_required",
+        {},
+        stageResults,
+        classifyResult.userMessage
+      );
+      return {
+        success: true,
+        document: doc,
+        userMessage: classifyResult.userMessage || "Document sent for manual admin review.",
+        code: classifyResult.code || "MANUAL_REVIEW_QUEUED",
+        stageResults
+      };
     }
 
     // ─── STAGE 5: Field Extraction ───
@@ -102,15 +126,11 @@ async function processDocument(userId, file, documentType, authHeader) {
       // Still upload to storage for admin review
       await uploadToStorage(filePath, file, authHeader);
 
-      await insertDocument(userId, documentType, filePath, "rejected_forged", extractedFields, stageResults, fraudResult.userMessage);
+      const doc = await insertDocument(userId, documentType, filePath, "rejected_forged", extractedFields, stageResults, fraudResult.userMessage);
 
       return {
         success: true,
-        document: {
-          verification_status: "rejected_forged",
-          extracted_data: extractedFields,
-          validation_results: stageResults
-        },
+        document: doc,
         userMessage: fraudResult.userMessage,
         code: fraudResult.code,
         stageResults
@@ -160,12 +180,16 @@ async function processDocument(userId, file, documentType, authHeader) {
 
 async function uploadToStorage(filePath, file, authHeader) {
   const supabaseUrl = process.env.SUPABASE_URL || "https://ilznvhcabsrbyarrgyhl.supabase.co";
+  const effectiveAuth = authHeader || (process.env.SUPABASE_SERVICE_ROLE_KEY ? `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY.trim()}` : undefined);
+  const headers = {
+    'Content-Type': file.mimetype
+  };
+  if (effectiveAuth) {
+    headers['Authorization'] = effectiveAuth;
+  }
   const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/citizen_documents/${filePath}`, {
     method: 'POST',
-    headers: {
-      'Authorization': authHeader,
-      'Content-Type': file.mimetype
-    },
+    headers,
     body: file.buffer
   });
 

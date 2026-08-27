@@ -194,13 +194,24 @@ export default function UserProfile({ onUpdateProfile, onComplete }) {
     }, 900);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const uploadData = new FormData();
       uploadData.append('document', selectedFile);
+      uploadData.append('documentType', documentType);
       uploadData.append('document_type', documentType);
-      uploadData.append('user_id', user.id);
+      uploadData.append('userId', user?.id || '');
+      uploadData.append('user_id', user?.id || '');
+
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       const response = await fetch('http://localhost:5000/api/documents/verify', {
         method: 'POST',
+        headers,
         body: uploadData,
       });
 

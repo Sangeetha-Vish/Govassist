@@ -3,11 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './SchemeAssistant.css';
 
-const EXAMPLE_PROMPTS = [
+const INITIAL_PROMPTS = [
   'Am I eligible for a scholarship?',
+  'What startup subsidies exist in Tamil Nadu?',
+  'How does MUDRA loan assistance work?',
   'What documents do I need for AABCS?',
-  'Are there startup subsidies in Tamil Nadu?',
-  'How do I get MUDRA loan assistance?',
+];
+
+const SCHEME_CONTEXT_PROMPTS = [
+  'How do I apply for this?',
+  "When's the deadline?",
+  'Help me fill this form (income & documents)',
+  'How do I track my application status?',
 ];
 
 export default function SchemeAssistant({ profile }) {
@@ -19,13 +26,15 @@ export default function SchemeAssistant({ profile }) {
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState('');
+  const [activeScheme, setActiveScheme] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [feedbackSent, setFeedbackSent] = useState({});
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Initialize or load Session ID from localStorage
+  // Initialize Session ID
   useEffect(() => {
     let storedSession = localStorage.getItem('govassist_chat_session');
     if (!storedSession) {
@@ -50,6 +59,7 @@ export default function SchemeAssistant({ profile }) {
               text: m.message,
               sources: m.sources || [],
               isPersonalized: m.is_personalized || false,
+              feedbackRating: m.feedback_rating || null,
             }))
           );
         }
@@ -61,14 +71,14 @@ export default function SchemeAssistant({ profile }) {
     loadHistory();
   }, [user?.id]);
 
-  // Auto-scroll to bottom on message updates
+  // Auto-scroll to bottom
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isStreaming, isOpen]);
 
-  // Focus input when chat opens
+  // Auto-focus input on open
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 150);
@@ -85,7 +95,6 @@ export default function SchemeAssistant({ profile }) {
     const userMessageId = `user_${Date.now()}`;
     const assistantMessageId = `assistant_${Date.now()}`;
 
-    // Add user message immediately
     const updatedMessages = [
       ...messages,
       { id: userMessageId, role: 'user', text, sources: [], isPersonalized: false },
@@ -107,6 +116,7 @@ export default function SchemeAssistant({ profile }) {
           message: text,
           sessionId,
           profile: profile || null,
+          activeScheme: activeScheme || null,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -120,6 +130,7 @@ export default function SchemeAssistant({ profile }) {
       let assistantText = '';
       let sources = [];
       let isPersonalized = false;
+      let returnedActiveScheme = activeScheme;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -146,17 +157,20 @@ export default function SchemeAssistant({ profile }) {
               } else if (event.type === 'done') {
                 sources = event.sources || [];
                 isPersonalized = event.isPersonalized || false;
+                if (event.activeScheme) {
+                  returnedActiveScheme = event.activeScheme;
+                  setActiveScheme(event.activeScheme);
+                }
               } else if (event.type === 'error') {
                 setErrorMessage(event.message || 'Assistant temporarily unavailable.');
               }
             } catch (e) {
-              console.error('Error parsing SSE event:', e);
+              console.error('Error parsing SSE chunk:', e);
             }
           }
         }
       }
 
-      // Finalize assistant message
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
@@ -173,7 +187,7 @@ export default function SchemeAssistant({ profile }) {
             msg.id === assistantMessageId
               ? {
                   ...msg,
-                  text: "I'm having trouble connecting to the verified scheme database right now. Please explore schemes directly in Scheme Finder.",
+                  text: "I'm having trouble retrieving verified records right now. Please explore schemes directly in [Scheme Finder](/finder).",
                   isLive: false,
                 }
               : msg
@@ -182,6 +196,41 @@ export default function SchemeAssistant({ profile }) {
       }
     } finally {
       setIsStreaming(false);
+    }
+  };
+
+  const handleFeedback = async (messageId, rating) => {
+    try {
+      setFeedbackSent((prev) => ({ ...prev, [messageId]: rating }));
+      const headers = { 'Content-Type': 'application/json' };
+      if (user?.id) headers['x-user-id'] = user.id;
+
+      await fetch('http://localhost:5000/api/chat/feedback', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ messageId, rating }),
+      });
+    } catch (err) {
+      console.warn('Feedback submit failed:', err);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Clear all conversation messages in this session?')) return;
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (user?.id) headers['x-user-id'] = user.id;
+
+      await fetch('http://localhost:5000/api/chat/history', {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ sessionId }),
+      });
+      setMessages([]);
+      setActiveScheme(null);
+      setErrorMessage(null);
+    } catch (err) {
+      console.error('Error clearing history:', err);
     }
   };
 
@@ -194,22 +243,18 @@ export default function SchemeAssistant({ profile }) {
     }
   };
 
-  // Simple Markdown Parser for Links, Bold, and Bullet Points
+  // Safe Markdown Parsing
   const renderFormattedMessage = (text) => {
     if (!text) return null;
-
-    // Split by newlines
     const lines = text.split('\n');
 
     return lines.map((line, idx) => {
-      // Heading
       if (line.startsWith('### ')) {
         return <h4 key={idx} className="chat-msg-h4">{renderInlineMarkdown(line.replace('### ', ''))}</h4>;
       }
       if (line.startsWith('## ')) {
         return <h3 key={idx} className="chat-msg-h3">{renderInlineMarkdown(line.replace('## ', ''))}</h3>;
       }
-      // Bullet items
       if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
         return (
           <div key={idx} className="chat-bullet-row">
@@ -218,18 +263,23 @@ export default function SchemeAssistant({ profile }) {
           </div>
         );
       }
-      // Empty line spacer
+      if (/^\d+\.\s+/.test(line.trim())) {
+        const num = line.trim().match(/^(\d+\.)\s+/)[1];
+        return (
+          <div key={idx} className="chat-bullet-row">
+            <span className="chat-num-dot">{num}</span>
+            <span>{renderInlineMarkdown(line.trim().replace(/^\d+\.\s+/, ''))}</span>
+          </div>
+        );
+      }
       if (!line.trim()) {
         return <div key={idx} className="chat-line-gap"></div>;
       }
-      // Standard paragraph
       return <p key={idx} className="chat-msg-p">{renderInlineMarkdown(line)}</p>;
     });
   };
 
-  // Helper for **bold** and [link](url)
   const renderInlineMarkdown = (str) => {
-    // Regex matching [text](url) and **bold**
     const tokens = str.split(/(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*)/g);
 
     return tokens.map((token, i) => {
@@ -266,9 +316,11 @@ export default function SchemeAssistant({ profile }) {
     });
   };
 
+  const currentChips = activeScheme ? SCHEME_CONTEXT_PROMPTS : INITIAL_PROMPTS;
+
   return (
     <div className="gov-chat-container">
-      {/* ─── FLOATING TOGGLE BUTTON (≥44px Touch Target) ─── */}
+      {/* Floating Action Button */}
       <button
         type="button"
         className={`gov-chat-floating-btn ${isOpen ? 'active' : ''}`}
@@ -280,7 +332,7 @@ export default function SchemeAssistant({ profile }) {
         {!isOpen && <span className="floating-btn-badge">AI</span>}
       </button>
 
-      {/* ─── CHAT WINDOW MODAL ─── */}
+      {/* Chat Window Modal */}
       {isOpen && (
         <div className="gov-chat-window animate-chat-slide" role="dialog" aria-label="GovAssist Scheme Assistant">
           {/* Header */}
@@ -296,15 +348,43 @@ export default function SchemeAssistant({ profile }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="chat-close-btn"
-              onClick={() => setIsOpen(false)}
-              aria-label="Close chat"
-            >
-              ✕
-            </button>
+            <div className="chat-header-actions">
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  className="chat-clear-btn"
+                  onClick={handleClearHistory}
+                  title="Clear conversation history"
+                >
+                  🗑️
+                </button>
+              )}
+              <button
+                type="button"
+                className="chat-close-btn"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close chat"
+              >
+                ✕
+              </button>
+            </div>
           </div>
+
+          {/* Active Scheme Context Pill */}
+          {activeScheme && (
+            <div className="active-scheme-context-bar">
+              <span className="context-kicker">✦ IN FOCUS:</span>
+              <span className="context-scheme-name">{activeScheme.scheme_name}</span>
+              <button
+                type="button"
+                className="clear-context-btn"
+                onClick={() => setActiveScheme(null)}
+                title="Reset scheme focus"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Guest Mode Banner */}
           {!user && (
@@ -322,19 +402,19 @@ export default function SchemeAssistant({ profile }) {
 
           {/* Messages Scroll Area */}
           <div className="gov-chat-messages-area" aria-live="polite">
-            {/* Empty State / First-open Greetings */}
+            {/* Empty State Greetings */}
             {messages.length === 0 && (
               <div className="chat-empty-intro">
                 <div className="intro-icon">🏛️</div>
                 <h4 className="intro-heading">How can I help you today?</h4>
                 <p className="intro-sub">
-                  Ask me about eligibility rules, grant amounts, required documents, or application links for any verified scheme.
+                  Ask me about eligibility, how schemes work, deadlines, form-filling advice, or application status tracking.
                 </p>
 
                 <div className="chat-example-prompts">
                   <span className="example-kicker">TRY ASKING:</span>
                   <div className="prompt-chips-grid">
-                    {EXAMPLE_PROMPTS.map((promptText, idx) => (
+                    {INITIAL_PROMPTS.map((promptText, idx) => (
                       <button
                         key={idx}
                         type="button"
@@ -352,6 +432,7 @@ export default function SchemeAssistant({ profile }) {
             {/* Conversation Messages */}
             {messages.map((msg) => {
               const isUser = msg.role === 'user';
+              const currentRating = feedbackSent[msg.id] || msg.feedbackRating;
 
               return (
                 <div key={msg.id} className={`chat-message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
@@ -373,7 +454,7 @@ export default function SchemeAssistant({ profile }) {
                       {isUser ? msg.text : renderFormattedMessage(msg.text)}
                     </div>
 
-                    {/* Typing Animation for Streaming */}
+                    {/* Streaming Cursor Dot */}
                     {!isUser && msg.isLive && (
                       <span className="streaming-cursor-dot"></span>
                     )}
@@ -397,6 +478,32 @@ export default function SchemeAssistant({ profile }) {
                         </div>
                       </div>
                     )}
+
+                    {/* Quality Feedback (Thumbs Up / Down) */}
+                    {!isUser && !msg.isLive && msg.text && (
+                      <div className="chat-feedback-row">
+                        <span className="feedback-label">Was this helpful?</span>
+                        <button
+                          type="button"
+                          className={`feedback-btn ${currentRating === 1 ? 'active-up' : ''}`}
+                          onClick={() => handleFeedback(msg.id, 1)}
+                          title="Good, accurate response"
+                        >
+                          👍
+                        </button>
+                        <button
+                          type="button"
+                          className={`feedback-btn ${currentRating === -1 ? 'active-down' : ''}`}
+                          onClick={() => handleFeedback(msg.id, -1)}
+                          title="Needs improvement"
+                        >
+                          👎
+                        </button>
+                        {currentRating && (
+                          <span className="feedback-thank-you">Thanks for your feedback!</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -412,6 +519,22 @@ export default function SchemeAssistant({ profile }) {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Contextual Quick-Action Chips */}
+          {messages.length > 0 && !isStreaming && (
+            <div className="chat-context-chips-bar">
+              {currentChips.map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="context-chip-pill"
+                  onClick={() => handleSendMessage(chip)}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input Footer Area */}
           <div className="gov-chat-input-footer">
             <div className="chat-input-wrapper">
@@ -419,7 +542,7 @@ export default function SchemeAssistant({ profile }) {
                 ref={inputRef}
                 type="text"
                 className="chat-text-input"
-                placeholder="Ask about schemes, eligibility, benefits..."
+                placeholder={activeScheme ? `Ask about ${activeScheme.scheme_name}...` : 'Ask about schemes, eligibility, deadlines...'}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -438,7 +561,7 @@ export default function SchemeAssistant({ profile }) {
               </button>
             </div>
             <div className="chat-disclaimer-text">
-              Grounded in official government datasets. Never fabricates criteria.
+              Grounded on 95 verified official schemes. Never fabricates criteria.
             </div>
           </div>
         </div>

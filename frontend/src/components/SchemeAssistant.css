@@ -1,6 +1,6 @@
 /* ==========================================================================
    GovAssist AI - Editorial Scheme Assistant Chat Widget Styles
-   Warm parchment palette, rich maroon accents, accessible & responsive.
+   Full Citizen Journey UX, Active Context Pill, Quality Feedback & Responsive
    ========================================================================== */
 
 .gov-chat-container {
@@ -63,9 +63,9 @@
   position: absolute;
   bottom: 70px;
   right: 0;
-  width: 400px;
-  height: 600px;
-  max-height: calc(100vh - 120px);
+  width: 420px;
+  height: 620px;
+  max-height: calc(100vh - 110px);
   background-color: var(--bg-app);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
@@ -91,7 +91,7 @@
 .gov-chat-header {
   background-color: #FFFFFF;
   border-bottom: 1px solid var(--border-subtle);
-  padding: 1rem 1.25rem;
+  padding: 0.9rem 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -146,6 +146,28 @@
   50% { opacity: 0.4; transform: scale(0.85); }
 }
 
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chat-clear-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: var(--radius-xs);
+  transition: all 0.2s ease;
+}
+
+.chat-clear-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-hero);
+}
+
 .chat-close-btn {
   background: transparent;
   border: none;
@@ -160,6 +182,44 @@
 .chat-close-btn:hover {
   background-color: var(--bg-subtle);
   color: var(--text-hero);
+}
+
+/* ─── Active Scheme Context Pill Bar ─── */
+.active-scheme-context-bar {
+  background-color: #FAF4EB;
+  border-bottom: 1px solid #EAD8C3;
+  padding: 0.45rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+}
+
+.context-kicker {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--ga-maroon-base);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.context-scheme-name {
+  font-weight: 600;
+  color: var(--text-hero);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.clear-context-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
 }
 
 /* ─── Guest Mode Banner ─── */
@@ -310,7 +370,7 @@
 
 /* Bubbles */
 .chat-bubble {
-  max-width: 82%;
+  max-width: 84%;
   padding: 0.85rem 1.1rem;
   border-radius: 14px;
   font-size: 0.88rem;
@@ -389,6 +449,12 @@
   font-weight: 700;
 }
 
+.chat-num-dot {
+  color: var(--ga-maroon-base);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
 .chat-line-gap {
   height: 0.45rem;
 }
@@ -409,7 +475,7 @@
   color: var(--ga-maroon-hover);
 }
 
-/* Streaming dot indicator */
+/* Streaming cursor dot */
 .streaming-cursor-dot {
   display: inline-block;
   width: 6px;
@@ -468,6 +534,94 @@
   color: var(--ga-maroon-base);
 }
 
+/* Quality Feedback Row */
+.chat-feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-light);
+}
+
+.feedback-label {
+  margin-right: 0.2rem;
+}
+
+.feedback-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  transition: all 0.2s ease;
+}
+
+.feedback-btn:hover {
+  border-color: var(--border-hover);
+  background-color: var(--bg-subtle);
+}
+
+.feedback-btn.active-up {
+  border-color: var(--ga-emerald-base);
+  background-color: #EEF5F1;
+}
+
+.feedback-btn.active-down {
+  border-color: #EF4444;
+  background-color: #FEF2F2;
+}
+
+.feedback-thank-you {
+  font-size: 0.7rem;
+  color: var(--ga-emerald-base);
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+
+/* ─── Contextual Quick-Action Chips Bar ─── */
+.chat-context-chips-bar {
+  background-color: #FFFFFF;
+  border-top: 1px solid var(--border-subtle);
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.chat-context-chips-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.chat-context-chips-bar::-webkit-scrollbar-thumb {
+  background-color: var(--border-subtle);
+  border-radius: 2px;
+}
+
+.context-chip-pill {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-hero);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.context-chip-pill:hover {
+  border-color: var(--ga-maroon-base);
+  color: var(--ga-maroon-base);
+  background-color: var(--ga-maroon-subtle);
+}
+
 /* Error toast */
 .chat-error-toast {
   background-color: #FEF2F2;
@@ -485,7 +639,7 @@
 .gov-chat-input-footer {
   background-color: #FFFFFF;
   border-top: 1px solid var(--border-subtle);
-  padding: 0.85rem 1rem 0.75rem;
+  padding: 0.75rem 1rem 0.65rem;
 }
 
 .chat-input-wrapper {
@@ -562,7 +716,7 @@
   font-size: 0.68rem;
   color: var(--text-light);
   text-align: center;
-  margin-top: 0.4rem;
+  margin-top: 0.35rem;
 }
 
 /* ═══════════════════════════════════════════════════════════

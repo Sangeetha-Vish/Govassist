@@ -3,9 +3,15 @@
  * Validates file before any processing: extension, MIME type, size, corruption.
  */
 
-const ALLOWED_MIME_TYPES = ["application/pdf"];
-const ALLOWED_EXTENSIONS = [".pdf"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/jpg"
+];
+const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function validate(file) {
   if (!file || !file.buffer) {
@@ -21,7 +27,7 @@ function validate(file) {
     return {
       pass: false,
       code: "FILE_TOO_LARGE",
-      userMessage: "Your file is too large. Please upload a document smaller than 5MB."
+      userMessage: "Your file is too large. Please upload a document smaller than 10MB."
     };
   }
 
@@ -33,23 +39,16 @@ function validate(file) {
     };
   }
 
-  // Check MIME type
-  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+  // Check MIME type or extension
+  const fileName = (file.originalname || "").toLowerCase();
+  const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext));
+  const hasValidMime = ALLOWED_MIME_TYPES.includes(file.mimetype);
+
+  if (!hasValidExtension && !hasValidMime) {
     return {
       pass: false,
       code: "INVALID_FORMAT",
-      userMessage: "Please upload your document as a PDF file. Other file formats are not supported at this time."
-    };
-  }
-
-  // Check extension
-  const fileName = (file.originalname || "").toLowerCase();
-  const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext));
-  if (!hasValidExtension) {
-    return {
-      pass: false,
-      code: "INVALID_EXTENSION",
-      userMessage: "Please upload your document as a PDF file."
+      userMessage: "Please upload your document as a PDF, JPG, or PNG file."
     };
   }
 
